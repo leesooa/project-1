@@ -4,8 +4,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import URL
+from sqlalchemy import text
+from database import engine
 
 from sklearn.model_selection import train_test_split
 from sklearn.compose import ColumnTransformer
@@ -19,38 +19,12 @@ from sklearn.tree import DecisionTreeRegressor
 
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
+# 1. 평가 함수
 
-# =========================
-# 1. MySQL 연결 설정
-# =========================
-
-DB_USER = "root"
-DB_PASSWORD = "tndk^^5005"   # 여기를 본인 MySQL 비밀번호로 수정
-DB_HOST = "localhost"
-DB_PORT = 3306
-DB_NAME = "used_device_price_db"
-
-DATABASE_URL = URL.create(
-    drivername="mysql+pymysql",
-    username=DB_USER,
-    password=DB_PASSWORD,
-    host=DB_HOST,
-    port=DB_PORT,
-    database=DB_NAME,
-    query={"charset": "utf8mb4"},
-)
-
-engine = create_engine(DATABASE_URL)
-
-
-# =========================
-# 2. 평가 함수
-# =========================
 
 def mean_absolute_percentage_error(y_true, y_pred):
     """
     MAPE 계산 함수.
-    실제값이 0에 가까운 경우 나누기 오류를 피하기 위해 작은 값을 더한다.
     """
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
@@ -80,10 +54,7 @@ def evaluate_model(model, X_test, y_test):
         "mape": mape,
     }
 
-
-# =========================
-# 3. 데이터 불러오기
-# =========================
+# 2. 데이터 불러오기
 
 def load_data_from_mysql():
     query = "SELECT * FROM used_device_data"
@@ -95,20 +66,15 @@ def load_data_from_mysql():
 
     return df
 
-
-# =========================
-# 4. 데이터 전처리 및 학습 준비
-# =========================
+# 3. 데이터 전처리 및 학습 준비
 
 def prepare_data(df):
-    # id 컬럼은 학습에 필요 없으므로 제거
     if "id" in df.columns:
         df = df.drop(columns=["id"])
 
-    # 예측 대상
     target_col = "normalized_used_price"
 
-    # 혹시 예측 대상 결측치가 있으면 제거
+    #  결측치 제거
     df = df.dropna(subset=[target_col])
 
     # 입력 변수
@@ -129,7 +95,6 @@ def prepare_data(df):
         "normalized_new_price",
     ]
 
-    # 실제 존재하는 컬럼만 사용
     feature_cols = [col for col in feature_cols if col in df.columns]
 
     X = df[feature_cols]
@@ -158,10 +123,7 @@ def prepare_data(df):
 
     return X, y, categorical_features, numeric_features
 
-
-# =========================
-# 5. 전처리 파이프라인 생성
-# =========================
+# 4. 전처리 파이프라인 생성
 
 def create_preprocessor(categorical_features, numeric_features):
     numeric_transformer = Pipeline(steps=[
@@ -189,10 +151,7 @@ def create_preprocessor(categorical_features, numeric_features):
 
     return preprocessor
 
-
-# =========================
-# 6. 모델 학습 및 비교
-# =========================
+# 5. 모델 학습 및 비교
 
 def train_and_compare_models(X, y, categorical_features, numeric_features):
     X_train, X_test, y_train, y_test = train_test_split(
@@ -265,10 +224,7 @@ def train_and_compare_models(X, y, categorical_features, numeric_features):
 
     return results_df, best_model_name, best_pipeline, X_test, y_test
 
-
-# =========================
-# 7. 모델 결과 저장
-# =========================
+# 6. 모델 결과 저장
 
 def save_results(results_df):
     os.makedirs("results", exist_ok=True)
@@ -302,10 +258,7 @@ def save_best_model(best_pipeline, best_model_name):
 
     print(f"최적 모델 저장 완료: {model_path}")
 
-
-# =========================
-# 8. 실제값/예측값 저장
-# =========================
+# 7. 실제값/예측값 저장
 
 def save_prediction_comparison(best_pipeline, X_test, y_test):
     os.makedirs("results", exist_ok=True)
@@ -327,10 +280,7 @@ def save_prediction_comparison(best_pipeline, X_test, y_test):
 
     print("실제값/예측값 비교 결과 저장 완료: results/prediction_comparison.csv")
 
-
-# =========================
-# 9. 메인 실행
-# =========================
+# 8. 메인 실행
 
 def main():
     df = load_data_from_mysql()
